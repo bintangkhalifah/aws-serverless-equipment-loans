@@ -224,7 +224,7 @@ Sandbox juga menghapus semua resource saat sesi berakhir.
 - [x] Week 12: rancangan, diagram, kode awal, rencana deploy, konektivitas AWS terverifikasi
 - [x] Week 14: CRUD lengkap ter-deploy, pengujian, dan bukti
 - [ ] Week 14: video demo
-- [ ] Week 14: pembersihan resource dan bukti pembersihan
+- [x] Week 14: pembersihan resource dan bukti pembersihan
 
 ## 12. Keterbatasan dan trade-off
 
