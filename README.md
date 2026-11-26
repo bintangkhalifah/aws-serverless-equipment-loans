@@ -8,7 +8,6 @@ Proyek individu mata kuliah Komputasi Awan (Track C: Serverless).
 | Nama | Bintang Khalifa Hadianto |
 | NIM | 24/534951/TK/59312 |
 | NIU | 534951 |
-| Departemen | DTETI, Fakultas Teknik, Universitas Gadjah Mada |
 | Lingkungan | AWS Academy Cloud Foundations Sandbox, region `us-east-1` |
 
 ## 1. Fungsi aplikasi
