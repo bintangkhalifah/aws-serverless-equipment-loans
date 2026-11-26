@@ -1,0 +1,4 @@
+# Only needed for local unit tests. boto3 is already provided by the Lambda runtime.
+boto3
+moto[dynamodb,s3]
+pytest

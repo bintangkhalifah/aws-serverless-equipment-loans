@@ -1,0 +1,11 @@
+# build output and caches
+build/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# secrets: never commit
+.env
+*.pem
+*.ppk
+*.token
