@@ -9,3 +9,4 @@ __pycache__/
 *.pem
 *.ppk
 *.token
+.DS_Store
