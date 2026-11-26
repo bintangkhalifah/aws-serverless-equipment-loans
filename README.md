@@ -1,203 +1,239 @@
-# Equipment Loans API (Serverless, Track C)
+# API Peminjaman Alat (Serverless, Track C)
 
-A small REST API for recording equipment loans, built as two serverless microservices on AWS.
-Individual project for the Cloud Computing course (Track C: Serverless).
+API REST sederhana untuk mencatat peminjaman alat, dibangun sebagai dua microservice serverless di AWS.
+Proyek individu mata kuliah Komputasi Awan (Track C: Serverless).
 
 | | |
 |---|---|
-| Name | Bintang Khalifa Hadianto |
-| Student ID (NIM) | 24/534951/TK/59312 |
+| Nama | Bintang Khalifa Hadianto |
+| NIM | 24/534951/TK/59312 |
 | NIU | 534951 |
-| Department | DTETI, Faculty of Engineering, Universitas Gadjah Mada |
-| Environment | AWS Academy Cloud Foundations Sandbox, region `us-east-1` |
+| Departemen | DTETI, Fakultas Teknik, Universitas Gadjah Mada |
+| Lingkungan | AWS Academy Cloud Foundations Sandbox, region `us-east-1` |
 
-## 1. What it does
+## 1. Fungsi aplikasi
 
-Borrowers and equipment (projector, camera, laptop, ...) are recorded as **loans**.
-A loan has an equipment name, a borrower, a loan date, an optional return date and a status
-(`borrowed` or `returned`). The API supports the four CRUD operations over HTTP and keeps the
-data in AWS storage, so it is still there after the functions restart.
+Setiap peminjaman alat (proyektor, kamera, laptop, dan sebagainya) dicatat sebagai sebuah **loan**.
+Satu loan berisi nama alat, nama peminjam, tanggal pinjam, tanggal kembali (opsional), dan status
+(`borrowed` atau `returned`). API menyediakan empat operasi CRUD lewat HTTP dan menyimpan data di
+penyimpanan AWS, sehingga data tetap ada setelah fungsi di-restart.
 
-## 2. Architecture
+## 2. Arsitektur (as-built)
 
-![Architecture](docs/architecture.png)
+![Arsitektur](docs/architecture.png)
 
-The diagram source is in `docs/` (`.drawio`, open it with https://app.diagrams.net).
+Sumber diagram ada di `docs/architecture.drawio` (buka dengan https://app.diagrams.net).
 
-The API is split into **two microservices**, deployed as two separate Lambda functions:
+API dipecah menjadi **dua microservice** yang di-deploy sebagai dua fungsi Lambda terpisah:
 
-| Microservice | Lambda function | Endpoints | Why separate |
+| Microservice | Fungsi Lambda | Endpoint | Alasan dipisah |
 |---|---|---|---|
-| Read | `loan-read` | `GET /health`, `GET /loans`, `GET /loans/{id}` | Public, read-only, most traffic |
-| Write | `loan-write` | `POST /loans`, `PUT /loans/{id}`, `DELETE /loans/{id}` | Changes data, needs the API token |
+| Read | `loan-read` | `GET /health`, `GET /loans`, `GET /loans/{id}` | Hanya membaca, paling banyak dipakai |
+| Write | `loan-write` | `POST /loans`, `PUT /loans/{id}`, `DELETE /loans/{id}` | Mengubah data, wajib memakai token API |
 
-If `loan-write` breaks, `loan-read` keeps working (shown in the failure/recovery test).
+Kalau `loan-write` bermasalah, `loan-read` tetap berjalan. Ini dibuktikan di skenario kegagalan
+(bagian 9).
 
-### AWS services
+### Layanan AWS yang dipakai
 
-The slide suggests API Gateway + Lambda + DynamoDB. Because the sandbox only allows a fixed list of
-services, the deployment script supports an equivalent alternative:
+Rancangan awal mengikuti slide: API Gateway + Lambda + DynamoDB. Saat deploy di sandbox, pembuatan
+tabel DynamoDB (`dynamodb:CreateTable`) dan pembuatan API di API Gateway (`apigateway:POST`) ditolak
+dengan `AccessDeniedException` oleh kebijakan sandbox, jadi dipakai alternatif yang setara:
 
-| Role | Planned (as in the slide) | Alternative (equivalent) |
+| Peran | Rencana (slide) | **As-built (yang ter-deploy)** |
 |---|---|---|
-| API entry point | Amazon API Gateway (HTTP API) | Application Load Balancer with Lambda targets |
-| Compute | AWS Lambda (Python) x 2 | AWS Lambda (Python) x 2 |
-| Storage | Amazon DynamoDB (table `loans`) | Amazon S3 (one JSON object per loan) |
-| Logs | Amazon CloudWatch Logs | Amazon CloudWatch Logs |
-| IAM | `LabRole` (execution role) | `LabRole` (execution role) |
+| Pintu masuk API | API Gateway (HTTP API) | **Application Load Balancer** dengan target Lambda |
+| Komputasi | AWS Lambda (Python) x 2 | **AWS Lambda (Python 3.12) x 2** |
+| Penyimpanan | DynamoDB (tabel `loans`) | **Amazon S3** (satu objek JSON per loan) |
+| Log | CloudWatch Logs | **CloudWatch Logs** |
+| IAM | `LabRole` | **`LabRole`** (execution role) |
 
-> **As-built:** _fill in after deployment: which variant was deployed, and the base URL._
+Bukti penolakan DynamoDB dan API Gateway ada di `evidence/w12-07-access-denied.png`.
+
+ALB meneruskan request berdasarkan method dan path:
+
+| Prioritas | Kondisi | Tujuan |
+|---|---|---|
+| 10 | `GET` pada `/health`, `/loans`, `/loans/*` | `loan-read-tg` (Lambda `loan-read`) |
+| 20 | `POST`, `PUT`, `DELETE` pada `/loans`, `/loans/*` | `loan-write-tg` (Lambda `loan-write`) |
+| default | selain di atas | respons tetap 404 `{"error":"route not found"}` |
+
+Kondisi deploy saat pengujian:
+
+- Region: `us-east-1`
+- Fungsi Lambda: `loan-read` dan `loan-write` (Python 3.12, 128 MB, timeout 10 detik)
+- Bucket S3: `equipment-loans-<account-id>`, objek di `loans/{id}.json`
+- Base URL: `http://equipment-loans-alb-58598994.us-east-1.elb.amazonaws.com`
+  (hanya aktif selama sesi sandbox; resource dihapus setelah pengujian)
 
 ## 3. API
 
-Base URL: `https://<api-id>.execute-api.us-east-1.amazonaws.com` (API Gateway) or
-`http://<alb-dns-name>` (ALB). Bodies are JSON.
+Base URL mengikuti hasil deploy, bentuknya `http://<nama-dns-alb>`. Semua body berformat JSON.
 
-| Method | Path | Service | Auth | Success | Description |
+| Method | Path | Service | Autentikasi | Sukses | Keterangan |
 |---|---|---|---|---|---|
-| GET | `/health` | loan-read | none | 200 | Service check |
-| GET | `/loans` | loan-read | none | 200 | List all loans |
-| GET | `/loans/{id}` | loan-read | none | 200 | One loan (404 if missing) |
-| POST | `/loans` | loan-write | `x-api-key` | 201 | Create a loan |
-| PUT | `/loans/{id}` | loan-write | `x-api-key` | 200 | Update fields of a loan |
-| DELETE | `/loans/{id}` | loan-write | `x-api-key` | 200 | Delete a loan |
+| GET | `/health` | loan-read | tidak ada | 200 | Cek layanan |
+| GET | `/loans` | loan-read | tidak ada | 200 | Daftar semua loan |
+| GET | `/loans/{id}` | loan-read | tidak ada | 200 | Satu loan (404 kalau tidak ada) |
+| POST | `/loans` | loan-write | `x-api-key` | 201 | Membuat loan |
+| PUT | `/loans/{id}` | loan-write | `x-api-key` | 200 | Mengubah field loan |
+| DELETE | `/loans/{id}` | loan-write | `x-api-key` | 200 | Menghapus loan |
 
-### Data entity: `loan`
+### Entitas data: `loan`
 
-| Field | Type | Notes |
+| Field | Tipe | Catatan |
 |---|---|---|
-| `id` | string | UUID, generated by the service |
-| `equipment_name` | string | required, max 100 characters |
-| `borrower_name` | string | required, max 100 characters |
-| `loan_date` | string | required, `YYYY-MM-DD` |
-| `return_date` | string or null | `YYYY-MM-DD`; set automatically when status becomes `returned` |
-| `status` | string | `borrowed` (default) or `returned` |
-| `created_at`, `updated_at` | string | UTC timestamps, set by the service |
+| `id` | string | UUID, dibuat oleh service |
+| `equipment_name` | string | wajib, maksimal 100 karakter |
+| `borrower_name` | string | wajib, maksimal 100 karakter |
+| `loan_date` | string | wajib, format `YYYY-MM-DD` |
+| `return_date` | string atau null | `YYYY-MM-DD`; terisi otomatis saat status menjadi `returned` |
+| `status` | string | `borrowed` (default) atau `returned` |
+| `created_at`, `updated_at` | string | timestamp UTC, diisi oleh service |
 
-### Examples
+### Contoh pemakaian
 
 ```bash
-# create
+# buat loan
 curl -X POST "$BASE_URL/loans" -H "Content-Type: application/json" -H "x-api-key: $API_TOKEN" \
   -d '{"equipment_name":"Proyektor Epson","borrower_name":"Bibin","loan_date":"2026-11-26"}'
 
-# list and read
+# daftar dan baca satu loan
 curl "$BASE_URL/loans"
 curl "$BASE_URL/loans/<id>"
 
-# update (mark as returned)
+# ubah (tandai sudah dikembalikan)
 curl -X PUT "$BASE_URL/loans/<id>" -H "Content-Type: application/json" -H "x-api-key: $API_TOKEN" \
   -d '{"status":"returned"}'
 
-# delete
+# hapus
 curl -X DELETE "$BASE_URL/loans/<id>" -H "x-api-key: $API_TOKEN"
 ```
 
-Error responses are JSON: `{"error": "..."}` with status 400 (bad input), 401 (missing or wrong
-token), 404 (not found), 405 (wrong method for the service) or 500 (server problem).
+Respons error berupa JSON `{"error": "..."}` dengan status 400 (input salah), 401 (token kosong atau
+salah), 404 (tidak ditemukan), 405 (method tidak sesuai service), atau 500 (masalah di server).
 
-## 4. Repository layout
+## 4. Struktur repositori
 
 ```
 src/
-  shared/        HTTP parsing/responses, validation rules, storage (DynamoDB or S3)
-  loan_read/     handler.py  - read microservice
-  loan_write/    handler.py  - write microservice
+  shared/        parsing HTTP dan respons, aturan validasi, penyimpanan (DynamoDB atau S3)
+  loan_read/     handler.py  - microservice baca
+  loan_write/    handler.py  - microservice tulis
 tests/
-  test_api.py          unit tests (moto fakes DynamoDB and S3)
-  smoke_test.sh        end-to-end test of the deployed API
-  persistence_test.sh  data must survive a restart
+  test_api.py          unit test (moto menirukan DynamoDB dan S3)
+  smoke_test.sh        uji end-to-end terhadap API yang sudah ter-deploy
+  persistence_test.sh  data harus tetap ada setelah restart
 infra/
-  deploy.sh            creates everything (AWS CLI)
-  teardown.sh          deletes everything
-  build.py             packages the two Lambda zips
-  failure_demo.sh      break / restore loan-write
-  restart_functions.sh forces a cold start of both functions
-  lambda_env.py        helper to change Lambda environment variables
-docs/                  diagram, deployment plan, evidence checklist, demo script
-evidence/              screenshots and test outputs
+  deploy.sh            membuat semua resource (AWS CLI)
+  teardown.sh          menghapus semua resource
+  build.py             membuat dua zip Lambda
+  failure_demo.sh      merusak / memulihkan loan-write
+  restart_functions.sh memaksa cold start kedua fungsi
+  lambda_env.py        pembantu untuk mengubah environment variable Lambda
+docs/                  diagram, rencana deploy, checklist bukti, naskah demo
+evidence/              screenshot dan keluaran pengujian
 ```
 
-## 5. Run the tests locally
+## 5. Menjalankan test lokal
 
 ```bash
 pip install -r requirements-dev.txt
 pytest -v
 ```
 
-## 6. Deploy to the AWS Academy sandbox
+## 6. Deploy ke AWS Academy Sandbox
 
-Run in AWS CloudShell (or the sandbox Lab IDE terminal):
+Jalankan di AWS CloudShell:
 
 ```bash
-git clone <this-repo-url> && cd <repo-folder>
+git clone <url-repo-ini> && cd <folder-repo>
 
-./infra/deploy.sh                                    # API Gateway + DynamoDB (as in the slide)
-# if DynamoDB is blocked:   STORAGE_BACKEND=s3 ./infra/deploy.sh
-# if API Gateway is blocked: API_FRONT=alb STORAGE_BACKEND=s3 ./infra/deploy.sh
+./infra/deploy.sh                                     # API Gateway + DynamoDB (sesuai slide)
+# kalau DynamoDB diblokir:    STORAGE_BACKEND=s3 ./infra/deploy.sh
+# kalau API Gateway diblokir: API_FRONT=alb STORAGE_BACKEND=s3 ./infra/deploy.sh
 ```
 
-The script uses the existing `LabRole` (new IAM roles cannot be created in the sandbox).
-The full step-by-step plan is in [`docs/deployment-plan.md`](docs/deployment-plan.md).
+Yang dipakai pada deploy ini adalah perintah terakhir (`API_FRONT=alb STORAGE_BACKEND=s3`).
+Script memakai `LabRole` yang sudah ada karena role IAM baru tidak bisa dibuat di sandbox.
+Langkah lengkap ada di [`docs/deployment-plan.md`](docs/deployment-plan.md).
 
-## 7. Test the deployment
+## 7. Menguji deployment
 
 ```bash
 ./tests/smoke_test.sh | tee evidence/smoke-test-output.txt
 ./tests/persistence_test.sh write
 ./infra/restart_functions.sh
-./tests/persistence_test.sh check | tee evidence/persistence-output.txt
+./tests/persistence_test.sh check | tee -a evidence/persistence-output.txt
 ```
 
-## 8. Security and observability
+Bukti pengujian yang tersimpan di folder `evidence/`:
 
-- **No secrets in Git.** The API token is created by `deploy.sh`, stored in `~/.loans_token`
-  outside the repository, and set only as an environment variable of `loan-write`.
-  `.gitignore` also blocks `.env`, `*.pem` and `*.ppk`.
-- **Write endpoints require `x-api-key`.** The check uses a constant-time comparison and fails
-  closed (HTTP 500) if the token is not configured. Read endpoints are public because the
-  sample data is not sensitive.
-- **Input validation:** required fields, text length, `YYYY-MM-DD` dates, allowed statuses;
-  the `id` cannot be changed.
-- **IAM:** both functions use `LabRole`. This is broader than least privilege, but the sandbox does
-  not allow creating roles. In a real account each function would get its own role: read-only
-  access for `loan-read` and write access for `loan-write`.
-- **Storage:** DynamoDB is reachable only through IAM. The S3 bucket (alternative) has Block
-  Public Access turned on.
-- **Network (ALB variant only):** the ALB security group allows inbound HTTP (port 80) only.
-- **Logs and monitoring:** each request writes one JSON log line (service, method, path, status)
-  to CloudWatch Logs (`/aws/lambda/loan-read`, `/aws/lambda/loan-write`). Tokens are never logged.
+| Pengujian | Berkas |
+|---|---|
+| CRUD dan validasi (9 pemeriksaan lolos) | `smoke-test-output.txt`, `w14-01-crud-curl.png` |
+| Keamanan: tulis tanpa token ditolak 401 | `w14-02-security-401.png` |
+| Persistensi setelah restart fungsi | `persistence-output.txt`, `w14-03-persistence.png` |
+| Token tidak tampil di environment variable (hanya nama) | `w14-03-env-vars-masked.png` |
+| Pemindaian secret di repo | `w14-07-secret-scan.png` |
+| Kegagalan: tulis 500, baca tetap 200 | `w14-04-failure-500.png` |
+| Pemulihan setelah `restore` | `recovery-output.txt`, `w14-05-recovery.png` |
+| Log permintaan di CloudWatch | `w14-06-cloudwatch-logs.png` |
+| Infrastruktur Week 12 (Lambda, S3, ALB, IAM, health) | `w12-01` sampai `w12-08` |
 
-## 9. Failure and recovery scenario
+## 8. Keamanan dan observability
+
+- **Tidak ada secret di Git.** Token API dibuat oleh `deploy.sh`, disimpan di `~/.loans_token` di luar
+  repositori, dan hanya dipasang sebagai environment variable pada `loan-write`. `.gitignore`
+  juga memblokir `.env`, `*.pem`, dan `*.ppk`.
+- **Endpoint tulis wajib `x-api-key`.** Pemeriksaan memakai perbandingan constant-time dan gagal
+  tertutup (HTTP 500) kalau token belum dikonfigurasi. Endpoint baca bersifat publik karena data
+  contoh tidak sensitif.
+- **Validasi input:** field wajib, panjang teks, tanggal `YYYY-MM-DD`, status yang diizinkan;
+  `id` tidak dapat diubah.
+- **IAM:** kedua fungsi memakai `LabRole`. Ini lebih longgar daripada least privilege, tetapi sandbox
+  tidak mengizinkan pembuatan role. Di akun biasa, setiap fungsi sebaiknya punya role sendiri: akses
+  baca saja untuk `loan-read` dan akses tulis untuk `loan-write`.
+- **Penyimpanan:** bucket S3 memakai Block Public Access (aktif) dan hanya bisa diakses lewat IAM.
+- **Jaringan:** security group ALB hanya mengizinkan HTTP (port 80) masuk.
+- **Log dan monitoring:** tiap request menulis satu baris log JSON (service, method, path, status)
+  ke CloudWatch Logs (`/aws/lambda/loan-read`, `/aws/lambda/loan-write`). Token tidak pernah dicatat.
+
+## 9. Skenario kegagalan dan pemulihan
 
 ```bash
-./infra/failure_demo.sh break      # loan-write now points at storage that does not exist
-./tests/smoke_test.sh              # writes return HTTP 500, reads still return 200
-./infra/failure_demo.sh restore    # correct storage settings put back
-./tests/smoke_test.sh              # everything passes again
+./infra/failure_demo.sh break      # loan-write diarahkan ke penyimpanan yang tidak ada
+./tests/smoke_test.sh              # tulis menghasilkan HTTP 500, baca tetap 200
+./infra/failure_demo.sh restore    # pengaturan penyimpanan dikembalikan
+./tests/smoke_test.sh              # semua pemeriksaan lolos lagi
 ```
 
-This shows the benefit of splitting the API into two microservices: the failure is limited to
-the write side.
+Skenario ini memperlihatkan manfaat memecah API menjadi dua microservice: kegagalan hanya
+berdampak pada sisi tulis, sedangkan sisi baca tetap melayani request.
 
-## 10. Cleanup
+## 10. Pembersihan resource
 
 ```bash
 ./infra/teardown.sh
 ```
 
-Deletes the API Gateway/ALB, Lambda functions, log groups, DynamoDB table or S3 bucket. The
-sandbox also removes all resources when the session ends.
+Script menghapus ALB, target group, security group, fungsi Lambda, log group, dan bucket S3.
+Sandbox juga menghapus semua resource saat sesi berakhir.
 
 ## 11. Status
 
-- [ ] Week 12: design, diagram, starter code, deployment plan, initial AWS connectivity verified
-- [ ] Week 14: full CRUD deployed, tests, evidence, demo video
+- [x] Week 12: rancangan, diagram, kode awal, rencana deploy, konektivitas AWS terverifikasi
+- [x] Week 14: CRUD lengkap ter-deploy, pengujian, dan bukti
+- [ ] Week 14: video demo
+- [ ] Week 14: pembersihan resource dan bukti pembersihan
 
-## 12. Known limitations and trade-offs
+## 12. Keterbatasan dan trade-off
 
-- Lambda Function URLs and API keys on API Gateway were not used; a shared token in a header is the
-  simplest protection that fits the sandbox.
-- Listing loans scans the whole table (or bucket prefix). That is fine for a demo, not for large data.
-- One shared `LabRole` instead of one role per function (sandbox restriction).
-- The sandbox is cleaned at the end of each session, so the deployment is rebuilt with one command.
+- API Gateway dan DynamoDB tidak dapat dipakai di sandbox, sehingga diganti ALB dan S3. ALB
+  menambah biaya per jam dibanding API Gateway, jadi resource perlu dihapus setelah demo.
+- Function URL Lambda dan API key bawaan API Gateway tidak dipakai; token bersama di header adalah
+  proteksi paling sederhana yang cocok dengan sandbox.
+- Daftar loan dibaca dengan memindai seluruh prefix `loans/` di S3. Cukup untuk demo, kurang cocok untuk
+  data besar (di DynamoDB bisa memakai indeks atau query).
+- Satu `LabRole` dipakai bersama, bukan satu role per fungsi (batasan sandbox).
+- Sandbox dibersihkan di akhir sesi, jadi deployment dibangun ulang dengan satu perintah.
