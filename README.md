@@ -7,7 +7,6 @@ Proyek individu mata kuliah Komputasi Awan (Track C: Serverless).
 |---|---|
 | Nama | Bintang Khalifa Hadianto |
 | NIM | 24/534951/TK/59312 |
-| NIU | 534951 |
 | Lingkungan | AWS Academy Cloud Foundations Sandbox, region `us-east-1` |
 
 ## 1. Fungsi aplikasi
@@ -23,7 +22,7 @@ penyimpanan AWS, sehingga data tetap ada setelah fungsi di-restart.
 
 Sumber diagram ada di `docs/architecture.drawio` (buka dengan https://app.diagrams.net).
 
-API dipecah menjadi **dua microservice** yang di-deploy sebagai dua fungsi Lambda terpisah:
+API dipecah menjadi **dua microservice** yang di deploy sebagai dua fungsi Lambda terpisah:
 
 | Microservice | Fungsi Lambda | Endpoint | Alasan dipisah |
 |---|---|---|---|
