@@ -1,0 +1,38 @@
+== Smoke test: http://equipment-loans-alb-58598994.us-east-1.elb.amazonaws.com ==
+Time: 2026-11-26T04:02:11Z
+
+-- 1. Health check (loan-read)
+[PASS] GET /health -> HTTP 200 (expected 200)
+{"status": "ok", "service": "loan-read"}
+
+-- 2. Security: write without token must be rejected
+[PASS] POST /loans -> HTTP 401 (expected 401)
+{"error": "missing or invalid x-api-key"}
+
+-- 3. CREATE (loan-write)
+[PASS] POST /loans -> HTTP 201 (expected 201)
+{"id": "bd8eb3cf-b0b5-4853-9e8e-bab1759a1ad1", "equipment_name": "Proyektor Epson", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": null, "status": "borrowed", "created_at": "2026-11-26T04:02:14+00:00", "updated_at": "2026-11-26T04:02:14+00:00"}
+
+-- 4. READ list and single item (loan-read)
+[PASS] GET /loans -> HTTP 200 (expected 200)
+{"count": 3, "items": [{"id": "7d272e41-9a64-46de-85ee-e6172cbaf406", "equipment_name": "Kamera Canon", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": null, "status": "borrowed", "created_at": "2026-11-26T03:43:47+00:00", "updated_at": "2026-11-26T03:43:47+00:00"}, {"id": "cab0b374-bfeb-4893-a69f-9ff6ba4e02f4", "equipment_name": "Tes Persistensi", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": null, "status": "borrowed", "created_at": "2026-11-26T03:53:38+00:00", "updated_at": "2026-11-26T03:53:38+00:00"}, {"id": "bd8eb3cf-b0b5-4853-9e8e-bab1759a1ad1", "equipment_name": "Proyektor Epson", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": null, "status": "borrowed", "created_at": "2026-11-26T04:02:14+00:00", "updated_at": "2026-11-26T04:02:14+00:00"}]}
+
+[PASS] GET /loans/bd8eb3cf-b0b5-4853-9e8e-bab1759a1ad1 -> HTTP 200 (expected 200)
+{"id": "bd8eb3cf-b0b5-4853-9e8e-bab1759a1ad1", "equipment_name": "Proyektor Epson", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": null, "status": "borrowed", "created_at": "2026-11-26T04:02:14+00:00", "updated_at": "2026-11-26T04:02:14+00:00"}
+
+-- 5. UPDATE: mark as returned (loan-write)
+[PASS] PUT /loans/bd8eb3cf-b0b5-4853-9e8e-bab1759a1ad1 -> HTTP 200 (expected 200)
+{"id": "bd8eb3cf-b0b5-4853-9e8e-bab1759a1ad1", "equipment_name": "Proyektor Epson", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": "2026-11-26", "status": "returned", "created_at": "2026-11-26T04:02:14+00:00", "updated_at": "2026-11-26T04:02:15+00:00"}
+
+-- 6. Validation: bad date must give 400
+[PASS] POST /loans -> HTTP 400 (expected 400)
+{"error": "loan_date must be a date in YYYY-MM-DD format"}
+
+-- 7. DELETE (loan-write), then the item must be gone
+[PASS] DELETE /loans/bd8eb3cf-b0b5-4853-9e8e-bab1759a1ad1 -> HTTP 200 (expected 200)
+{"deleted": "bd8eb3cf-b0b5-4853-9e8e-bab1759a1ad1"}
+
+[PASS] GET /loans/bd8eb3cf-b0b5-4853-9e8e-bab1759a1ad1 -> HTTP 404 (expected 404)
+{"error": "loan not found"}
+
+== Result: 9 passed, 0 failed ==

@@ -1,0 +1,4 @@
+{"id": "cab0b374-bfeb-4893-a69f-9ff6ba4e02f4", "equipment_name": "Tes Persistensi", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": null, "status": "borrowed", "created_at": "2026-11-26T03:53:38+00:00", "updated_at": "2026-11-26T03:53:38+00:00"}
+WRITE ok. Saved id to /home/cloudshell-user/.loans_persist_id. Now run ./infra/restart_functions.sh
+{"id": "cab0b374-bfeb-4893-a69f-9ff6ba4e02f4", "equipment_name": "Tes Persistensi", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": null, "status": "borrowed", "created_at": "2026-11-26T03:53:38+00:00", "updated_at": "2026-11-26T03:53:38+00:00"}
+[PASS] loan cab0b374-bfeb-4893-a69f-9ff6ba4e02f4 still exists after restart

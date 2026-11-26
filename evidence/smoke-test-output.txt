@@ -1,0 +1,38 @@
+== Smoke test: http://equipment-loans-alb-58598994.us-east-1.elb.amazonaws.com ==
+Time: 2026-11-26T03:42:24Z
+
+-- 1. Health check (loan-read)
+[PASS] GET /health -> HTTP 200 (expected 200)
+{"status": "ok", "service": "loan-read"}
+
+-- 2. Security: write without token must be rejected
+[PASS] POST /loans -> HTTP 401 (expected 401)
+{"error": "missing or invalid x-api-key"}
+
+-- 3. CREATE (loan-write)
+[PASS] POST /loans -> HTTP 201 (expected 201)
+{"id": "83e9a07f-329c-439b-aefd-031cfeb3ec1c", "equipment_name": "Proyektor Epson", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": null, "status": "borrowed", "created_at": "2026-11-26T03:42:27+00:00", "updated_at": "2026-11-26T03:42:27+00:00"}
+
+-- 4. READ list and single item (loan-read)
+[PASS] GET /loans -> HTTP 200 (expected 200)
+{"count": 1, "items": [{"id": "83e9a07f-329c-439b-aefd-031cfeb3ec1c", "equipment_name": "Proyektor Epson", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": null, "status": "borrowed", "created_at": "2026-11-26T03:42:27+00:00", "updated_at": "2026-11-26T03:42:27+00:00"}]}
+
+[PASS] GET /loans/83e9a07f-329c-439b-aefd-031cfeb3ec1c -> HTTP 200 (expected 200)
+{"id": "83e9a07f-329c-439b-aefd-031cfeb3ec1c", "equipment_name": "Proyektor Epson", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": null, "status": "borrowed", "created_at": "2026-11-26T03:42:27+00:00", "updated_at": "2026-11-26T03:42:27+00:00"}
+
+-- 5. UPDATE: mark as returned (loan-write)
+[PASS] PUT /loans/83e9a07f-329c-439b-aefd-031cfeb3ec1c -> HTTP 200 (expected 200)
+{"id": "83e9a07f-329c-439b-aefd-031cfeb3ec1c", "equipment_name": "Proyektor Epson", "borrower_name": "Bibin", "loan_date": "2026-11-26", "return_date": "2026-11-26", "status": "returned", "created_at": "2026-11-26T03:42:27+00:00", "updated_at": "2026-11-26T03:42:31+00:00"}
+
+-- 6. Validation: bad date must give 400
+[PASS] POST /loans -> HTTP 400 (expected 400)
+{"error": "loan_date must be a date in YYYY-MM-DD format"}
+
+-- 7. DELETE (loan-write), then the item must be gone
+[PASS] DELETE /loans/83e9a07f-329c-439b-aefd-031cfeb3ec1c -> HTTP 200 (expected 200)
+{"deleted": "83e9a07f-329c-439b-aefd-031cfeb3ec1c"}
+
+[PASS] GET /loans/83e9a07f-329c-439b-aefd-031cfeb3ec1c -> HTTP 404 (expected 404)
+{"error": "loan not found"}
+
+== Result: 9 passed, 0 failed ==
