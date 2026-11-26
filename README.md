@@ -17,7 +17,7 @@ Satu loan berisi nama alat, nama peminjam, tanggal pinjam, tanggal kembali (opsi
 (`borrowed` atau `returned`). API menyediakan empat operasi CRUD lewat HTTP dan menyimpan data di
 penyimpanan AWS, sehingga data tetap ada setelah fungsi di-restart.
 
-## 2. Arsitektur (as-built)
+## 2. Arsitektur Diagram
 
 ![Arsitektur](docs/architecture.png)
 
@@ -63,7 +63,7 @@ Kondisi deploy saat pengujian:
 - Fungsi Lambda: `loan-read` dan `loan-write` (Python 3.12, 128 MB, timeout 10 detik)
 - Bucket S3: `equipment-loans-<account-id>`, objek di `loans/{id}.json`
 - Base URL: `http://equipment-loans-alb-58598994.us-east-1.elb.amazonaws.com`
-  (hanya aktif selama sesi sandbox; resource dihapus setelah pengujian)
+  (sudah tidak aktif karena resource dihapus setelah pengujian)
 
 ## 3. API
 
@@ -178,6 +178,7 @@ Bukti pengujian yang tersimpan di folder `evidence/`:
 | Kegagalan: tulis 500, baca tetap 200 | `w14-04-failure-500.png` |
 | Pemulihan setelah `restore` | `recovery-output.txt`, `w14-05-recovery.png` |
 | Log permintaan di CloudWatch | `w14-06-cloudwatch-logs.png` |
+| Pembersihan resource | `w14-07-cleanup-terminal.png`, `w14-07-cleanup-lambda.png`, `w14-07-cleanup-alb.png`, `w14-07-cleanup-targetgroups.png`, `w14-07-cleanup-s3.png`, `w14-07-cleanup-cloudwatch.png` |
 | Infrastruktur Week 12 (Lambda, S3, ALB, IAM, health) | `w12-01` sampai `w12-08` |
 
 ## 8. Keamanan dan observability
@@ -219,14 +220,7 @@ berdampak pada sisi tulis, sedangkan sisi baca tetap melayani request.
 Script menghapus ALB, target group, security group, fungsi Lambda, log group, dan bucket S3.
 Sandbox juga menghapus semua resource saat sesi berakhir.
 
-## 11. Status
-
-- [x] Week 12: rancangan, diagram, kode awal, rencana deploy, konektivitas AWS terverifikasi
-- [x] Week 14: CRUD lengkap ter-deploy, pengujian, dan bukti
-- [ ] Week 14: video demo
-- [x] Week 14: pembersihan resource dan bukti pembersihan
-
-## 12. Keterbatasan dan trade-off
+## 11. Keterbatasan dan trade-off
 
 - API Gateway dan DynamoDB tidak dapat dipakai di sandbox, sehingga diganti ALB dan S3. ALB
   menambah biaya per jam dibanding API Gateway, jadi resource perlu dihapus setelah demo.
